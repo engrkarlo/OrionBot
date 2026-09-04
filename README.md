@@ -84,8 +84,6 @@ Run the automated checks with:
 npm test
 ```
 
-Do not commit your `.env` file; it is intentionally ignored by Git.
-
 ## License
 
 OrionBot is distributed under the [MIT License](LICENSE). See the original project for the upstream implementation and history.
