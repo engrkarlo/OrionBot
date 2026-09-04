@@ -24,7 +24,7 @@ module.exports = async (message) => {
 
       notifiedUserIds.add(mentionedUser.id)
 
-      embeds.push(createAwayEmbed(mentionedUser, awayEntry, embedTranslation.away.noReason))
+      embeds.push(createAwayEmbed(mentionedUser, awayEntry, embedTranslation.away.noReason, message.author))
 
       if (embeds.length >= 10) break // Discord's per-message embed limit
     }

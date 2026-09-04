@@ -117,7 +117,7 @@ module.exports = {
     embed: {
       color: 'Orange',
       title: '{username} is away',
-      message: '{user} is currently away.\n**Reason:** {reason}',
+      message: 'Hey {user}, {username} is currently away.\n\n**Reason:** ```{reason}```',
       footer: 'Away since',
       showUserAvatar: true,
       showTimestamp: true,
