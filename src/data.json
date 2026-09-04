@@ -1,0 +1,14 @@
+{
+  "playerCountStats": null,
+  "autoChangeStatus": [],
+  "awayUsers": {},
+  "suggestions": {},
+  "reviews": {},
+  "serverConfig": {
+    "ip": "Whisperwinds.srein.fun",
+    "port": 25616,
+    "type": "java",
+    "name": "Whisperwinds SMP",
+    "version": "1.21.11"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "minecraft-discord-bot",
+  "version": "1.8.3",
+  "description": "A feature-rich and highly customizable Discord bot that provides information about your Minecraft server.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NooberPro/minecraft-discord-bot.git"
+  },
+  "keywords": [
+    "minecraft",
+    "discord",
+    "minecraft-server",
+    "discord-bot",
+    "discord-js",
+    "minecraft-bot"
+  ],
+  "author": "NooberPro",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/NooberPro/minecraft-discord-bot/issues"
+  },
+  "homepage": "https://github.com/NooberPro/minecraft-discord-bot#readme",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commandkit": "^0.1.10",
+    "discord.js": "^14.26.4",
+    "dotenv": "^17.4.2",
+    "json5": "^2.2.3",
+    "node-mcstatus": "^1.2.1"
+  }
+}
