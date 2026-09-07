@@ -96,8 +96,16 @@ const normalizeBlocks = (blocks) => {
       if (!content) throw new Error('Section text cannot be empty.')
       if (thumbnail && !isHttpUrl(thumbnail)) throw new Error('Section thumbnail must use an http:// or https:// URL.')
       if (button) {
-        const [normalized] = normalizeButtons([{ ...button, style: 'link' }])
-        return { type: 'section', content, thumbnail, button: normalized }
+        const style = String(button.style || 'link').toLowerCase()
+        if (!['link', 'primary', 'secondary', 'success', 'danger'].includes(style)) throw new Error('Section button style is invalid.')
+        const label = validateText(button.label, 'Section button label', 80)
+        const url = String(button.url || '').trim()
+        const response = validateText(button.response, 'Section button response', 2000)
+        if (!label) throw new Error('Section button label cannot be empty.')
+        if (style === 'link' && !isHttpUrl(url)) throw new Error('Section link buttons need a valid URL.')
+        if (style !== 'link' && !response) throw new Error('Colored section buttons need a response message.')
+        if (thumbnail) throw new Error('A Section can have either a thumbnail or a button, not both.')
+        return { type: 'section', content, thumbnail, button: { label, style, url: style === 'link' ? url : '', response: style === 'link' ? '' : response } }
       }
       return { type: 'section', content, thumbnail }
     }
@@ -121,6 +129,7 @@ const buildComponentsV2Embed = (input = {}) => {
   const container = new ContainerBuilder()
   const color = normalizeOptionalColor(input.color)
   if (color) container.setAccentColor(normalizeColor(color))
+  const sourceId = String(input.sourceId || `temporary-${Math.random().toString(36).slice(2, 10)}`)
   let index = 0
   while (index < blocks.length) {
     const block = blocks[index]
@@ -133,7 +142,7 @@ const buildComponentsV2Embed = (input = {}) => {
       if (!block.thumbnail && !block.button) { container.addTextDisplayComponents(new TextDisplayBuilder().setContent(block.content)); index += 1; continue }
       const section = new SectionBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(block.content))
       if (block.thumbnail) section.setThumbnailAccessory(new ThumbnailBuilder({ media: { url: block.thumbnail } }))
-      else section.setButtonAccessory(makeButton(block.button, `cv2:section:${Math.random().toString(36).slice(2, 12)}`))
+      else section.setButtonAccessory(makeButton(block.button, `cv2:s:${sourceId}:${index}`))
       container.addSectionComponents(section); index += 1; continue
     }
     if (block.type === 'image') {
@@ -152,7 +161,7 @@ const buildComponentsV2Embed = (input = {}) => {
       const row = new ActionRowBuilder()
       while (index < blocks.length && blocks[index].type === 'button' && row.components.length < MAX_BUTTONS) {
         const current = blocks[index]
-        row.addComponents(makeButton(current, `cv2:button:${Math.random().toString(36).slice(2, 12)}`))
+        row.addComponents(makeButton(current, `cv2:b:${sourceId}:${index}`))
         index += 1
       }
       container.addActionRowComponents(row); continue
