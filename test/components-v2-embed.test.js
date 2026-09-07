@@ -73,5 +73,11 @@ test('validates colors, fields, buttons and component types', () => {
   assert.throws(() => normalizeButtons([{ label: 'Docs', url: 'javascript:alert(1)' }]), /must start with http/)
   assert.throws(() => normalizeBlocks([{ type: 'unknown' }]), /Unsupported component type/)
   assert.throws(() => buildComponentsV2Embed({ blocks: [{ type: 'image', url: 'not-a-url' }] }), /Image must use/)
-  assert.throws(() => buildComponentsV2Embed({ blocks: [{ type: 'field', name: 'x', value: 'a'.repeat(5000) }] }), /Combined field content/)
+
+  const oversizedFields = Array.from({ length: 5 }, (_, index) => ({
+    type: 'field',
+    name: `Field ${index + 1}`,
+    value: 'a'.repeat(900),
+  }))
+  assert.throws(() => buildComponentsV2Embed({ blocks: oversizedFields }), /Combined field content/)
 })
