@@ -89,6 +89,42 @@ const addTrigger = (guildId, id, trigger, channelId) => {
   return record
 }
 
+const updateTrigger = (guildId, id, index, trigger) => {
+  const records = readStore()
+  const record = records.find((item) => item.guildId === guildId && item.id === id)
+  if (!record) throw new Error('That saved message no longer exists.')
+  const numericIndex = Number(index)
+  const triggers = [...(record.triggers || [])]
+  if (!Number.isInteger(numericIndex) || !triggers[numericIndex]) throw new Error('That trigger no longer exists.')
+  const cleanedTrigger = cleanTrigger(trigger)
+  if (!cleanedTrigger) throw new Error('Trigger cannot be empty.')
+  const channelId = triggers[numericIndex].channelId
+  const duplicate = records.some((item) => item.guildId === guildId && (item.triggers || []).some((itemTrigger, itemIndex) => {
+    if (item === record && itemIndex === numericIndex) return false
+    return itemTrigger.trigger === cleanedTrigger && itemTrigger.channelId === channelId
+  }))
+  if (duplicate) throw new Error('That trigger is already configured for this channel.')
+  triggers[numericIndex] = { ...triggers[numericIndex], trigger: cleanedTrigger }
+  record.triggers = triggers
+  record.updatedAt = new Date().toISOString()
+  writeStore(records)
+  return record
+}
+
+const removeTriggerAt = (guildId, id, index) => {
+  const records = readStore()
+  const record = records.find((item) => item.guildId === guildId && item.id === id)
+  if (!record) throw new Error('That saved message no longer exists.')
+  const numericIndex = Number(index)
+  const triggers = [...(record.triggers || [])]
+  if (!Number.isInteger(numericIndex) || !triggers[numericIndex]) throw new Error('That trigger no longer exists.')
+  triggers.splice(numericIndex, 1)
+  record.triggers = triggers
+  record.updatedAt = new Date().toISOString()
+  writeStore(records)
+  return record
+}
+
 const removeTrigger = (guildId, id, trigger, channelId) => {
   const records = readStore()
   const record = records.find((item) => item.guildId === guildId && item.id === id)
@@ -108,4 +144,4 @@ const findTriggeredEmbeds = (guildId, channelId, messageContent) => {
   return listSavedEmbeds(guildId).filter((record) => (record.triggers || []).some((item) => item.channelId === channelId && item.trigger === content))
 }
 
-module.exports = { DATA_FILE, listSavedEmbeds, getSavedEmbed, createSavedEmbed, updateSavedEmbed, deleteSavedEmbed, addTrigger, removeTrigger, findTriggeredEmbeds }
+module.exports = { DATA_FILE, listSavedEmbeds, getSavedEmbed, createSavedEmbed, updateSavedEmbed, deleteSavedEmbed, addTrigger, updateTrigger, removeTrigger, removeTriggerAt, findTriggeredEmbeds }
