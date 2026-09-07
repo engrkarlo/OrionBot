@@ -15,13 +15,12 @@ const { listSavedEmbeds } = require('./saved-embeds')
 
 const sessions = new Map()
 const TTL = 30 * 60 * 1000
-
 const makeId = (userId) => `sem-${userId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 
 const createSession = (userId, guildId) => {
   const id = makeId(userId)
   const records = listSavedEmbeds(guildId)
-  const session = { id, userId, guildId, selected: records[0]?.id || null, pending: null, updatedAt: Date.now() }
+  const session = { id, userId, guildId, selected: records[0]?.id || null, pending: null, selectedTrigger: null, updatedAt: Date.now() }
   sessions.set(id, session)
   return session
 }
@@ -33,17 +32,30 @@ const getSession = (id, userId) => {
   session.updatedAt = Date.now()
   return session
 }
-
 const deleteSession = (id) => sessions.delete(id)
+
+const getTriggerOptions = (records) => {
+  const entries = []
+  for (const record of records) {
+    for (let index = 0; index < (record.triggers || []).length; index += 1) {
+      const trigger = record.triggers[index]
+      entries.push({ record, index, trigger })
+      if (entries.length >= 25) return entries
+    }
+  }
+  return entries
+}
 
 const buildManagerComponents = (session, mode = 'manager') => {
   const records = listSavedEmbeds(session.guildId)
   if (session.selected && !records.some((record) => record.id === session.selected)) session.selected = records[0]?.id || null
   const selected = records.find((record) => record.id === session.selected)
+  const triggers = getTriggerOptions(records)
+  const selectedTrigger = session.selectedTrigger ? triggers.find((item) => `${item.record.id}:${item.index}` === session.selectedTrigger) : null
   const container = new ContainerBuilder().setAccentColor(0x5865f2)
   const heading = selected ? `Selected: **${selected.name}**` : 'Select a saved message to manage it.'
   const modeText = mode === 'send' ? '\n\nChoose a channel below to send the selected message.' : mode === 'trigger' ? '\n\nChoose a channel where the trigger should work.' : ''
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ✦ Saved Components V2\n\n**${records.length} saved message${records.length === 1 ? '' : 's'}**\n${heading}${modeText}`))
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ✦ Saved Components V2\n\n**${records.length} saved message${records.length === 1 ? '' : 's'}** • **${triggers.length} trigger${triggers.length === 1 ? '' : 's'} shown**\n${heading}${modeText}`))
 
   const options = records.length
     ? records.slice(0, 25).map((record) => ({ label: record.name.slice(0, 100), value: record.id, description: `${record.blocks.length} components${record.triggers?.length ? ` • ${record.triggers.length} trigger${record.triggers.length === 1 ? '' : 's'}` : ''}`, default: record.id === session.selected }))
@@ -66,9 +78,14 @@ const buildManagerComponents = (session, mode = 'manager') => {
     new ButtonBuilder().setCustomId(`sem:${session.id}:edit`).setLabel('Edit').setStyle(ButtonStyle.Primary).setDisabled(!selected),
     new ButtonBuilder().setCustomId(`sem:${session.id}:send`).setLabel('Send to Channel').setStyle(ButtonStyle.Success).setDisabled(!selected),
     new ButtonBuilder().setCustomId(`sem:${session.id}:trigger`).setLabel('Add Trigger').setStyle(ButtonStyle.Secondary).setDisabled(!selected),
-    new ButtonBuilder().setCustomId(`sem:${session.id}:remove-trigger`).setLabel('Remove Trigger').setStyle(ButtonStyle.Secondary).setDisabled(!selected || !selected.triggers?.length),
+    new ButtonBuilder().setCustomId(`sem:${session.id}:delete-trigger`).setLabel('Delete Trigger').setStyle(ButtonStyle.Secondary).setDisabled(!selectedTrigger),
     new ButtonBuilder().setCustomId(`sem:${session.id}:delete`).setLabel('Delete').setStyle(ButtonStyle.Danger).setDisabled(!selected),
   ))
+
+  const triggerOptions = triggers.length
+    ? triggers.map((item) => ({ label: `${item.trigger.trigger} • ${item.record.name}`.slice(0, 100), value: `${item.record.id}:${item.index}`, description: `Replies in <#${item.trigger.channelId}>`, default: selectedTrigger ? selectedTrigger.record.id === item.record.id && selectedTrigger.index === item.index : false }))
+    : [{ label: 'No triggers configured', value: 'none', description: 'Add a trigger to a saved message first.' }]
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`sem:${session.id}:trigger-select`).setPlaceholder('All saved triggers — select one to delete').addOptions(triggerOptions)))
   container.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`sem:${session.id}:close`).setLabel('Close').setStyle(ButtonStyle.Secondary)))
   return [container]
 }
