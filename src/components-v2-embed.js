@@ -3,6 +3,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
+  FileBuilder,
   MediaGalleryBuilder,
   MediaGalleryItemBuilder,
   SectionBuilder,
@@ -19,6 +20,7 @@ const MAX_BLOCKS = 20
 const BUTTON_STYLES = { primary: ButtonStyle.Primary, secondary: ButtonStyle.Secondary, success: ButtonStyle.Success, danger: ButtonStyle.Danger, link: ButtonStyle.Link }
 
 const isHttpUrl = (value) => /^https?:\/\/[^\s]+$/i.test(String(value || ''))
+const isFileUrl = (value) => isHttpUrl(value)
 
 const normalizeColor = (value) => {
   if (!value) return 0x5865f2
@@ -77,7 +79,7 @@ const normalizeBlocks = (blocks) => {
   const buttons = []
   for (const block of blocks) {
     if (!block || typeof block !== 'object') throw new Error('Every component must be an object.')
-    if (!['text', 'separator', 'section', 'image', 'field', 'button', 'footer'].includes(block.type)) throw new Error(`Unsupported component type: ${block.type}`)
+    if (!['text', 'separator', 'section', 'image', 'file', 'field', 'button', 'footer'].includes(block.type)) throw new Error(`Unsupported component type: ${block.type}`)
     if (block.type === 'field') fields.push(block)
     if (block.type === 'button') buttons.push(block)
   }
@@ -88,6 +90,11 @@ const normalizeBlocks = (blocks) => {
     if (block.type === 'footer') return { type: 'footer', content: validateText(block.content, 'Footer', 2048) }
     if (block.type === 'field') return { type: 'field', ...normalizeFields([block])[0] }
     if (block.type === 'button') return { type: 'button', ...normalizeButtons([block])[0] }
+    if (block.type === 'file') {
+      const url = String(block.url || '').trim()
+      if (!isFileUrl(url)) throw new Error('File URL must start with http:// or https://.')
+      return { type: 'file', url, spoiler: block.spoiler === true }
+    }
     if (block.type === 'separator') return { type: 'separator', divider: block.divider !== false, spacing: block.spacing === 'large' ? 'large' : 'small' }
     if (block.type === 'section') {
       const content = validateText(block.content, 'Section text', MAX_TEXT)
@@ -135,9 +142,7 @@ const buildComponentsV2Embed = (input = {}) => {
     const block = blocks[index]
     if (block.type === 'text') { container.addTextDisplayComponents(new TextDisplayBuilder().setContent(block.content)); index += 1; continue }
     if (block.type === 'footer') { container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${block.content}`)); index += 1; continue }
-    if (block.type === 'separator') {
-      container.addSeparatorComponents(new SeparatorBuilder().setDivider(block.divider).setSpacing(block.spacing === 'large' ? SeparatorSpacingSize.Large : SeparatorSpacingSize.Small)); index += 1; continue
-    }
+    if (block.type === 'separator') { container.addSeparatorComponents(new SeparatorBuilder().setDivider(block.divider).setSpacing(block.spacing === 'large' ? SeparatorSpacingSize.Large : SeparatorSpacingSize.Small)); index += 1; continue }
     if (block.type === 'section') {
       if (!block.thumbnail && !block.button) { container.addTextDisplayComponents(new TextDisplayBuilder().setContent(block.content)); index += 1; continue }
       const section = new SectionBuilder().addTextDisplayComponents(new TextDisplayBuilder().setContent(block.content))
@@ -150,6 +155,7 @@ const buildComponentsV2Embed = (input = {}) => {
       while (index < blocks.length && blocks[index].type === 'image') { gallery.addItems(new MediaGalleryItemBuilder().setURL(blocks[index].url)); index += 1 }
       container.addMediaGalleryComponents(gallery); continue
     }
+    if (block.type === 'file') { container.addFileComponents(new FileBuilder().setURL(block.url).setSpoiler(block.spoiler)); index += 1; continue }
     if (block.type === 'field') {
       const fieldParts = []
       while (index < blocks.length && blocks[index].type === 'field') { fieldParts.push(`**${blocks[index].name}**\n${blocks[index].value}`); index += 1 }
@@ -159,11 +165,7 @@ const buildComponentsV2Embed = (input = {}) => {
     }
     if (block.type === 'button') {
       const row = new ActionRowBuilder()
-      while (index < blocks.length && blocks[index].type === 'button' && row.components.length < MAX_BUTTONS) {
-        const current = blocks[index]
-        row.addComponents(makeButton(current, `cv2:b:${sourceId}:${index}`))
-        index += 1
-      }
+      while (index < blocks.length && blocks[index].type === 'button' && row.components.length < MAX_BUTTONS) { row.addComponents(makeButton(blocks[index], `cv2:b:${sourceId}:${index}`)); index += 1 }
       container.addActionRowComponents(row); continue
     }
     index += 1
