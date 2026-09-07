@@ -161,7 +161,7 @@ const buildUploadModal = (session) => {
     .setMinValues(1)
     .setMaxValues(1)
     .setRequired(true)
-    .setFileTypes('png', 'jpg', 'jpeg', 'gif', 'webp', 'avif')
+    .setFileTypes('.png', '.jpg', '.jpeg', '.gif', '.webp')
   const label = new LabelBuilder()
     .setLabel(block.type === 'section' ? 'Choose a thumbnail image' : 'Choose an image')
     .setDescription('Pick an image from your computer. It will be used in the selected component.')
