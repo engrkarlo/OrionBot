@@ -80,7 +80,7 @@ const buildEditorComponents = (session) => {
     { label: 'Separator', value: 'separator', description: 'Divider or spacing.' },
     { label: 'Section', value: 'section', description: 'Text with a thumbnail or button accessory.' },
     { label: 'Image / Gallery', value: 'image', description: 'Images are grouped into a gallery.' },
-    { label: 'File', value: 'file', description: 'Display a file from a URL.' },
+    { label: 'File', value: 'file', description: 'Display a file from a URL or upload.' },
     { label: 'Field', value: 'field', description: 'Convenient name/value information block.' },
     { label: 'Button', value: 'button', description: 'Link or colored interactive button.' },
     { label: 'Footer', value: 'footer', description: 'Small footer-style text.' },
@@ -89,7 +89,7 @@ const buildEditorComponents = (session) => {
     new ButtonBuilder().setCustomId(`eb:${session.id}:duplicate`).setLabel('Duplicate').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`eb:${session.id}:reset`).setLabel('Reset').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`eb:${session.id}:preview`).setLabel(session.preview ? 'Hide Preview' : 'Preview').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`eb:${session.id}:upload`).setLabel('Add Image').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`eb:${session.id}:upload`).setLabel('Upload').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`eb:${session.id}:save`).setLabel(session.savedEmbedId ? 'Save Changes' : 'Save').setStyle(ButtonStyle.Primary),
   ))
   container.addActionRowComponents(new ActionRowBuilder().addComponents(
@@ -123,10 +123,10 @@ const buildModalForBlock = (session) => {
   const modal = new ModalBuilder().setCustomId(`eb:${session.id}:modal:${session.selected}:${block.type}`).setTitle(`Edit ${componentLabel(block, session.selected).replace(/^\d+\. /, '')}`)
   if (block.type === 'text') modal.addComponents(textInput('content', 'Text / Markdown', block.content, TextInputStyle.Paragraph, true, 4000))
   else if (block.type === 'section') modal.addComponents(textInput('content', 'Section text / Markdown', block.content, TextInputStyle.Paragraph, true, 4000), textInput('thumbnail', 'Thumbnail URL (optional)', block.thumbnail || '', TextInputStyle.Short, false, 2000), textInput('button_label', 'Button label (optional)', block.button?.label || '', TextInputStyle.Short, false, 80), textInput('button_url', 'Button URL (optional)', block.button?.url || '', TextInputStyle.Short, false, 512))
-  else if (block.type === 'image') modal.addComponents(textInput('url', 'Image URL (optional if you upload)', block.url || '', TextInputStyle.Short, false, 2000))
-  else if (block.type === 'file') modal.addComponents(textInput('url', 'File URL', block.url || '', TextInputStyle.Short, true, 2000), textInput('spoiler', 'Spoiler? (true or false)', block.spoiler ? 'true' : 'false', TextInputStyle.Short, true, 5))
+  else if (block.type === 'image') modal.addComponents(textInput('url', 'Image URL (optional)', block.url || '', TextInputStyle.Short, false, 2000))
+  else if (block.type === 'file') modal.addComponents(textInput('url', 'File URL (optional)', block.url || '', TextInputStyle.Short, false, 2000), textInput('spoiler', 'Spoiler? (true or false)', block.spoiler ? 'true' : 'false', TextInputStyle.Short, true, 5))
   else if (block.type === 'field') modal.addComponents(textInput('name', 'Field name', block.name, TextInputStyle.Short, true, 256), textInput('value', 'Field value', block.value, TextInputStyle.Paragraph, true, 1024))
-  else if (block.type === 'button') modal.addComponents(textInput('label', 'Button label', block.label, TextInputStyle.Short, true, 80), textInput('style', 'Style: link, primary, secondary, success or danger', block.style || 'link', TextInputStyle.Short, true, 9), textInput('url', 'URL (required for link buttons)', block.url || '', TextInputStyle.Short, false, 512), textInput('response', 'Response for colored buttons', block.response || '', TextInputStyle.Paragraph, false, 2000))
+  else if (block.type === 'button') modal.addComponents(textInput('label', 'Button label', block.label, TextInputStyle.Short, true, 80), textInput('style', 'Button style', block.style || 'link', TextInputStyle.Short, true, 9), textInput('url', 'URL (required for link)', block.url || '', TextInputStyle.Short, false, 512), textInput('response', 'Response for colored buttons', block.response || '', TextInputStyle.Paragraph, false, 2000))
   else if (block.type === 'footer') modal.addComponents(textInput('content', 'Footer text', block.content, TextInputStyle.Short, true, 2048))
   else if (block.type === 'separator') modal.addComponents(textInput('divider', 'Show divider? (true or false)', block.divider !== false ? 'true' : 'false', TextInputStyle.Short, true, 5), textInput('spacing', 'Spacing (small or large)', block.spacing === 'large' ? 'large' : 'small', TextInputStyle.Short, true, 6))
   return modal
@@ -134,16 +134,22 @@ const buildModalForBlock = (session) => {
 
 const buildUploadModal = (session) => {
   const block = session.blocks[session.selected]
-  if (!block || !['image', 'section'].includes(block.type)) return null
-  const kind = block.type === 'section' ? 'thumbnail' : 'image'
-  const upload = new FileUploadBuilder({ custom_id: 'file', min_values: 1, max_values: 1, required: true, file_types: ['.png', '.jpg', '.jpeg', '.gif', '.webp'] })
-  const label = new LabelBuilder().setLabel(block.type === 'section' ? 'Choose a thumbnail image' : 'Choose an image').setDescription('Pick an image from your computer.').setFileUploadComponent(upload)
-  return new ModalBuilder().setCustomId(`eb:${session.id}:modal-upload:${session.selected}:${kind}`).setTitle(block.type === 'section' ? 'Upload Thumbnail' : 'Upload Image').addLabelComponents(label)
+  if (!block || !['image', 'section', 'file'].includes(block.type)) return null
+  const kind = block.type === 'section' ? 'thumbnail' : block.type
+  const multiple = block.type === 'image'
+  const upload = new FileUploadBuilder({ custom_id: 'file', min_values: 0, max_values: multiple ? 10 : 1, required: false })
+  const labelText = block.type === 'section' ? 'Choose a thumbnail' : block.type === 'file' ? 'Choose a file' : 'Choose images'
+  const label = new LabelBuilder().setLabel(labelText).setDescription(multiple ? 'Drop files here or browse. You can select multiple images for a gallery.' : 'Drop a file here or browse. URL below is optional.').setFileUploadComponent(upload)
+  const modal = new ModalBuilder().setCustomId(`eb:${session.id}:modal-upload:${session.selected}:${kind}`).setTitle(block.type === 'section' ? 'Upload Thumbnail' : block.type === 'file' ? 'Upload File' : 'Upload Images')
+  modal.addLabelComponents(label)
+  modal.addComponents(textInput('url', block.type === 'section' ? 'Image URL (optional)' : block.type === 'file' ? 'File URL (optional)' : 'Image URL (optional)', block.url || '', TextInputStyle.Short, false, 2000))
+  if (block.type === 'file') modal.addComponents(textInput('spoiler', 'Spoiler? (true or false)', block.spoiler ? 'true' : 'false', TextInputStyle.Short, true, 5))
+  return modal
 }
 
 const addBlock = (session, type) => {
   const defaults = {
-    text: { type: 'text', content: 'New text' }, separator: { type: 'separator', divider: true, spacing: 'small' }, section: { type: 'section', content: 'Section text', thumbnail: '' }, image: { type: 'image', url: '' }, file: { type: 'file', url: 'https://example.com/file.pdf', spoiler: false }, field: { type: 'field', name: 'Field name', value: 'Field value' }, button: { type: 'button', label: 'Website', style: 'link', url: 'https://example.com', response: '' }, footer: { type: 'footer', content: 'Footer text' },
+    text: { type: 'text', content: 'New text' }, separator: { type: 'separator', divider: true, spacing: 'small' }, section: { type: 'section', content: 'Section text', thumbnail: '' }, image: { type: 'image', url: '' }, file: { type: 'file', url: '', spoiler: false }, field: { type: 'field', name: 'Field name', value: 'Field value' }, button: { type: 'button', label: 'Website', style: 'link', url: 'https://example.com', response: '' }, footer: { type: 'footer', content: 'Footer text' },
   }
   if (!defaults[type]) throw new Error('Unknown component type.')
   if (session.blocks.length >= 20) throw new Error('The builder supports up to 20 components. Remove or combine some before adding more.')
@@ -167,7 +173,7 @@ const updateFromModal = (session, interaction) => {
     const url = get('url').trim(); if (url && !isHttpUrl(url)) throw new Error('Image URL must start with http:// or https://.'); block.url = url
   } else if (block.type === 'file') {
     const url = get('url').trim(); const spoiler = get('spoiler').trim().toLowerCase()
-    if (!isHttpUrl(url)) throw new Error('File URL must start with http:// or https://.')
+    if (url && !isHttpUrl(url)) throw new Error('File URL must start with http:// or https://.')
     if (!['true', 'false'].includes(spoiler)) throw new Error('Spoiler must be true or false.')
     block.url = url; block.spoiler = spoiler === 'true'
   } else if (block.type === 'field') { block.name = get('name'); block.value = get('value')
@@ -203,12 +209,26 @@ const saveSession = (session, guildId, name) => {
 
 const applyUploadedImage = (session, interaction, index, kind) => {
   const block = session.blocks[index]
-  if (!block || !['image', 'section'].includes(block.type)) throw new Error('That image component no longer exists.')
-  const files = interaction.fields.getUploadedFiles('file', true); const attachment = files.first()
-  if (!attachment || !attachment.contentType?.startsWith('image/')) throw new Error('Please upload a valid image file.')
-  if (kind === 'thumbnail' && block.type === 'section') block.thumbnail = attachment.url
-  else if (kind === 'image' && block.type === 'image') block.url = attachment.url
-  else throw new Error('The uploaded image no longer matches the selected component.')
+  if (!block || !['image', 'section', 'file'].includes(block.type)) throw new Error('That media component no longer exists.')
+  const url = interaction.fields.getTextInputValue('url').trim()
+  const spoiler = block.type === 'file' ? interaction.fields.getTextInputValue('spoiler').trim().toLowerCase() : null
+  if (url && !isHttpUrl(url)) throw new Error('URL must start with http:// or https://.')
+  if (block.type === 'file' && !['true', 'false'].includes(spoiler)) throw new Error('Spoiler must be true or false.')
+  const files = interaction.fields.getUploadedFiles('file', false)
+  const uploaded = files?.filter((attachment) => block.type !== 'image' || attachment.contentType?.startsWith('image/')) || []
+  if (block.type === 'image') {
+    const urls = [...uploaded.values()].map((attachment) => attachment.url)
+    if (!urls.length && url) urls.push(url)
+    if (!urls.length) throw new Error('Upload at least one image or enter an image URL.')
+    session.blocks.splice(index, 1, ...urls.map((itemUrl) => ({ type: 'image', url: itemUrl })))
+    session.selected = index
+    return
+  }
+  const attachment = uploaded.first()
+  const finalUrl = attachment?.url || url
+  if (!finalUrl) throw new Error('Upload a file or enter a URL.')
+  if (block.type === 'section') block.thumbnail = finalUrl
+  else { block.url = finalUrl; block.spoiler = spoiler === 'true' }
   session.selected = index
 }
 
