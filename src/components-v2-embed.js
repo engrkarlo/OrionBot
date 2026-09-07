@@ -93,7 +93,7 @@ const normalizeBlocks = (blocks) => {
     if (block.type === 'file') {
       const url = String(block.url || '').trim()
       if (!isFileUrl(url)) throw new Error('File URL must start with http:// or https://.')
-      return { type: 'file', url, spoiler: block.spoiler === true }
+      return { type: 'file', url, name: String(block.name || '').trim(), spoiler: block.spoiler === true }
     }
     if (block.type === 'separator') return { type: 'separator', divider: block.divider !== false, spacing: block.spacing === 'large' ? 'large' : 'small' }
     if (block.type === 'section') {
@@ -137,6 +137,7 @@ const buildComponentsV2Embed = (input = {}) => {
   const color = normalizeOptionalColor(input.color)
   if (color) container.setAccentColor(normalizeColor(color))
   const sourceId = String(input.sourceId || `temporary-${Math.random().toString(36).slice(2, 10)}`)
+  const fileAttachments = Array.isArray(input.fileAttachments) ? input.fileAttachments : []
   let index = 0
   while (index < blocks.length) {
     const block = blocks[index]
@@ -155,7 +156,11 @@ const buildComponentsV2Embed = (input = {}) => {
       while (index < blocks.length && blocks[index].type === 'image') { gallery.addItems(new MediaGalleryItemBuilder().setURL(blocks[index].url)); index += 1 }
       container.addMediaGalleryComponents(gallery); continue
     }
-    if (block.type === 'file') { container.addFileComponents(new FileBuilder().setURL(block.url).setSpoiler(block.spoiler)); index += 1; continue }
+    if (block.type === 'file') {
+      const attachment = fileAttachments.find((item) => item.index === index)
+      const url = attachment?.name ? `attachment://${attachment.name}` : block.url
+      container.addFileComponents(new FileBuilder().setURL(url).setSpoiler(block.spoiler)); index += 1; continue
+    }
     if (block.type === 'field') {
       const fieldParts = []
       while (index < blocks.length && blocks[index].type === 'field') { fieldParts.push(`**${blocks[index].name}**\n${blocks[index].value}`); index += 1 }
@@ -174,4 +179,32 @@ const buildComponentsV2Embed = (input = {}) => {
   return [container]
 }
 
-module.exports = { buildComponentsV2Embed, isHttpUrl, normalizeColor, normalizeOptionalColor, normalizeFields, normalizeButtons, normalizeBlocks }
+const safeFileName = (value, fallback = 'file.bin') => {
+  const name = String(value || '').split(/[\\/]/).pop().replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
+  return name || fallback
+}
+
+const fileNameFromUrl = (url, fallback) => {
+  try {
+    const pathname = new URL(url).pathname
+    return safeFileName(decodeURIComponent(pathname.split('/').pop()), fallback)
+  } catch {
+    return fallback
+  }
+}
+
+const buildComponentsV2Payload = (input = {}) => {
+  const rawBlocks = Array.isArray(input.blocks) ? input.blocks : []
+  const fileAttachments = rawBlocks.flatMap((block, index) => {
+    if (block?.type !== 'file') return []
+    const source = String(block.sourceUrl || block.url || '').trim()
+    if (!isHttpUrl(source)) throw new Error('File upload is missing its source URL.')
+    const name = safeFileName(block.name || fileNameFromUrl(source, `file-${index}.bin`), `file-${index}.bin`)
+    return [{ index, name, source }]
+  })
+  const components = buildComponentsV2Embed({ ...input, fileAttachments })
+  const files = fileAttachments.map(({ name, source }) => ({ attachment: source, name }))
+  return { components, files }
+}
+
+module.exports = { buildComponentsV2Embed, buildComponentsV2Payload, isHttpUrl, normalizeColor, normalizeOptionalColor, normalizeFields, normalizeButtons, normalizeBlocks }
