@@ -129,9 +129,10 @@ const textInput = (id, label, value, style = TextInputStyle.Short, required = tr
 const buildModalForBlock = (session) => {
   const block = session.blocks[session.selected]
   if (!block) return null
-  if (['image', 'file', 'section'].includes(block.type)) return buildUploadModal(session)
+  if (['image', 'file'].includes(block.type)) return buildUploadModal(session)
   const modal = new ModalBuilder().setCustomId(`eb:${session.id}:modal:${session.selected}:${block.type}`).setTitle(`Edit ${componentLabel(block, session.selected).replace(/^\d+\. /, '')}`)
   if (block.type === 'text') modal.addComponents(textInput('content', 'Text / Markdown', block.content, TextInputStyle.Paragraph, true, 4000))
+  else if (block.type === 'section') modal.addComponents(textInput('content', 'Section text / Markdown', block.content, TextInputStyle.Paragraph, true, 4000), textInput('thumbnail', 'Thumbnail URL (optional)', block.thumbnail || '', TextInputStyle.Short, false, 2000), textInput('button_label', 'Button label (optional)', block.button?.label || '', TextInputStyle.Short, false, 80), textInput('button_url', 'Button URL (optional)', block.button?.url || '', TextInputStyle.Short, false, 512))
   else if (block.type === 'field') modal.addComponents(textInput('name', 'Field name', block.name, TextInputStyle.Short, true, 256), textInput('value', 'Field value', block.value, TextInputStyle.Paragraph, true, 1024))
   else if (block.type === 'button') modal.addComponents(textInput('label', 'Button label', block.label, TextInputStyle.Short, true, 80), textInput('style', 'Button style', block.style || 'link', TextInputStyle.Short, true, 9), textInput('url', 'URL (required for link)', block.url || '', TextInputStyle.Short, false, 512), textInput('response', 'Response for colored buttons', block.response || '', TextInputStyle.Paragraph, false, 2000))
   else if (block.type === 'footer') modal.addComponents(textInput('content', 'Footer text', block.content, TextInputStyle.Short, true, 2048))
@@ -171,7 +172,14 @@ const updateFromModal = (session, interaction) => {
   if (!block) throw new Error('That component no longer exists.')
   const get = (id) => interaction.fields.getTextInputValue(id)
   if (block.type === 'text') block.content = get('content')
-  else if (block.type === 'field') { block.name = get('name'); block.value = get('value')
+  else if (block.type === 'section') {
+    block.content = get('content'); block.thumbnail = get('thumbnail').trim()
+    const buttonLabel = get('button_label').trim(); const buttonUrl = get('button_url').trim()
+    if (block.thumbnail && !isHttpUrl(block.thumbnail)) throw new Error('Thumbnail URL must start with http:// or https://.')
+    block.button = buttonLabel ? { label: buttonLabel, style: 'link', url: buttonUrl, response: '' } : null
+    if (buttonLabel && !isHttpUrl(buttonUrl)) throw new Error('Section button URL must start with http:// or https://.')
+    if (block.thumbnail && block.button) throw new Error('A Section can have either a thumbnail or a button, not both.')
+  } else if (block.type === 'field') { block.name = get('name'); block.value = get('value')
   } else if (block.type === 'button') {
     const style = get('style').trim().toLowerCase(); const label = get('label').trim(); const url = get('url').trim(); const response = get('response').trim()
     if (!['link', 'primary', 'secondary', 'success', 'danger'].includes(style)) throw new Error('Button style must be link, primary, secondary, success or danger.')
