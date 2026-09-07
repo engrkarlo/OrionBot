@@ -54,10 +54,12 @@ test('keeps ten fields in one TextDisplay so the container stays valid', () => {
   assert.equal(fields.length, 10)
   assert.equal(textDisplays.length, 2)
   assert.ok(container.components.length <= 10)
-  assert.throws(
-    () => buildComponentsV2Embed({ fields: [{ name: 'x', value: 'a'.repeat(4001) }] }),
-    /Combined field content/
-  )
+
+  const oversizedFields = Array.from({ length: 10 }, (_, index) => ({
+    name: `Field ${index + 1}`,
+    value: 'a'.repeat(500),
+  }))
+  assert.throws(() => buildComponentsV2Embed({ fields: oversizedFields }), /Combined field content/)
 })
 
 test('rejects invalid colors, URLs and malformed field/button data', () => {
