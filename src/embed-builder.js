@@ -3,6 +3,8 @@ const {
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
+  FileUploadBuilder,
+  LabelBuilder,
   ModalBuilder,
   StringSelectMenuBuilder,
   TextDisplayBuilder,
@@ -29,7 +31,6 @@ const createSession = (userId, channelId) => {
     ],
     selected: 0,
     preview: false,
-    pendingUpload: null,
     updatedAt: Date.now(),
   }
   sessions.set(id, session)
@@ -151,6 +152,26 @@ const buildModalForBlock = (session) => {
   return modal
 }
 
+const buildUploadModal = (session) => {
+  const block = session.blocks[session.selected]
+  if (!block || !['image', 'section'].includes(block.type)) return null
+  const kind = block.type === 'section' ? 'thumbnail' : 'image'
+  const upload = new FileUploadBuilder()
+    .setCustomId('file')
+    .setMinValues(1)
+    .setMaxValues(1)
+    .setRequired(true)
+    .setFileTypes('png', 'jpg', 'jpeg', 'gif', 'webp', 'avif')
+  const label = new LabelBuilder()
+    .setLabel(block.type === 'section' ? 'Choose a thumbnail image' : 'Choose an image')
+    .setDescription('Pick an image from your computer. It will be used in the selected component.')
+    .setFileUploadComponent(upload)
+  return new ModalBuilder()
+    .setCustomId(`eb:${session.id}:modal-upload:${session.selected}:${kind}`)
+    .setTitle(block.type === 'section' ? 'Upload Thumbnail' : 'Upload Image')
+    .addLabelComponents(label)
+}
+
 const addBlock = (session, type) => {
   const defaults = {
     text: { type: 'text', content: 'New text' },
@@ -204,4 +225,16 @@ const colorModal = (session) => new ModalBuilder().setCustomId(`eb:${session.id}
   )
 )
 
-module.exports = { sessions, createSession, getSession, deleteSession, buildEditorComponents, buildReplyComponents, buildModalForBlock, colorModal, addBlock, updateFromModal }
+const applyUploadedImage = (session, interaction, index, kind) => {
+  const block = session.blocks[index]
+  if (!block || !['image', 'section'].includes(block.type)) throw new Error('That image component no longer exists.')
+  const files = interaction.fields.getUploadedFiles('file', true)
+  const attachment = files.first()
+  if (!attachment || !attachment.contentType?.startsWith('image/')) throw new Error('Please upload a valid image file.')
+  if (kind === 'thumbnail' && block.type === 'section') block.thumbnail = attachment.url
+  else if (kind === 'image' && block.type === 'image') block.url = attachment.url
+  else throw new Error('The uploaded image no longer matches the selected component.')
+  session.selected = index
+}
+
+module.exports = { sessions, createSession, getSession, deleteSession, buildEditorComponents, buildReplyComponents, buildModalForBlock, buildUploadModal, colorModal, addBlock, updateFromModal, applyUploadedImage }
