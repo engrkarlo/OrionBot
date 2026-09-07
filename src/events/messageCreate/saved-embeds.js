@@ -1,5 +1,5 @@
 const { MessageFlags } = require('discord.js')
-const { buildComponentsV2Embed } = require('../../components-v2-embed')
+const { buildComponentsV2Payload } = require('../../components-v2-embed')
 const { findTriggeredEmbeds } = require('../../saved-embeds')
 
 module.exports = async (message) => {
@@ -9,8 +9,8 @@ module.exports = async (message) => {
 
   for (const record of matches) {
     try {
-      const components = buildComponentsV2Embed({ blocks: record.blocks, color: record.color, sourceId: record.id })
-      await message.reply({ flags: MessageFlags.IsComponentsV2, components, allowedMentions: { parse: [] } })
+      const payload = buildComponentsV2Payload({ blocks: record.blocks, color: record.color, sourceId: record.id })
+      await message.reply({ flags: MessageFlags.IsComponentsV2, components: payload.components, files: payload.files, allowedMentions: { parse: [] } })
     } catch (error) {
       console.error(`[saved-embeds] Failed to reply with "${record.name}":`, error)
     }
