@@ -39,6 +39,25 @@ test('supports sections, media galleries, separators and link buttons', () => {
   assert.ok(container.components.some((component) => component.type === 9)) // Section
   assert.ok(container.components.some((component) => component.type === 12)) // MediaGallery
   assert.ok(container.components.some((component) => component.type === 14)) // Separator
+  assert.ok(container.components.length <= 10) // Discord Container child limit
+})
+
+test('keeps ten fields in one TextDisplay so the container stays valid', () => {
+  const fields = Array.from({ length: 10 }, (_, index) => ({
+    name: `Field ${index + 1}`,
+    value: 'Value',
+  }))
+  const components = buildComponentsV2Embed({ title: 'Many fields', fields })
+  const container = components[0].toJSON()
+  const textDisplays = container.components.filter((component) => component.type === 10)
+
+  assert.equal(fields.length, 10)
+  assert.equal(textDisplays.length, 2)
+  assert.ok(container.components.length <= 10)
+  assert.throws(
+    () => buildComponentsV2Embed({ fields: [{ name: 'x', value: 'a'.repeat(4001) }] }),
+    /Combined field content/
+  )
 })
 
 test('rejects invalid colors, URLs and malformed field/button data', () => {
