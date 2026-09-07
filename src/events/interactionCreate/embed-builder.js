@@ -15,8 +15,8 @@ const {
   createSession: createBuilderSession,
 } = require('../../embed-builder')
 const { buildComponentsV2Payload, normalizeOptionalColor } = require('../../components-v2-embed')
-const { getSavedEmbed, listSavedEmbeds, addTrigger, removeTrigger, deleteSavedEmbed } = require('../../saved-embeds')
-const { getSession: getManagerSession, deleteSession: deleteManagerSession, buildManagerComponents, triggerModal } = require('../../saved-embeds-ui')
+const { getSavedEmbed, listSavedEmbeds, addTrigger, updateTrigger, removeTriggerAt, deleteSavedEmbed } = require('../../saved-embeds')
+const { getSession: getManagerSession, deleteSession: deleteManagerSession, buildManagerComponents, triggerModal, deleteSavedModal } = require('../../saved-embeds-ui')
 
 const parseId = (customId) => {
   const parts = customId.split(':')
@@ -62,8 +62,10 @@ const handleSavedManager = async (interaction, parsed) => {
   if (!session) return errorReply(interaction, 'This saved-message manager session has expired. Run `/saved-embeds` again.')
   if (interaction.guildId !== session.guildId) return errorReply(interaction, 'This manager can only be used in the server where it was opened.')
   const action = parsed.action[0]
+
   if (interaction.isStringSelectMenu() && action === 'select') {
     if (interaction.values[0] !== 'none') session.selected = interaction.values[0]
+    session.selectedTrigger = null
     await updateManager(interaction, session)
     return
   }
@@ -75,16 +77,40 @@ const handleSavedManager = async (interaction, parsed) => {
     await updateManager(interaction, session)
     return
   }
+
   if (interaction.isModalSubmit() && action === 'modal-trigger') {
     const mode = parsed.action[1] || 'add'
     const trigger = interaction.fields.getTextInputValue('trigger').trim()
+    if (mode === 'edit') {
+      const recordId = parsed.action[2]
+      const index = Number(parsed.action[3])
+      const record = getSavedEmbed(session.guildId, recordId)
+      if (!record) throw new Error('That saved message no longer exists.')
+      updateTrigger(session.guildId, record.id, index, trigger)
+      session.selected = record.id
+      session.selectedTrigger = `${record.id}:${index}`
+      await updateManager(interaction, session)
+      return
+    }
     const record = getSavedEmbed(session.guildId, session.selected)
     if (!record) throw new Error('That saved message no longer exists.')
-    if (mode === 'remove') removeTrigger(session.guildId, record.id, trigger)
-    else { session.pending = { trigger }; await interaction.update({ flags: MessageFlags.IsComponentsV2, components: buildManagerComponents(session, 'trigger') }); return }
+    session.pending = { trigger }
+    await interaction.update({ flags: MessageFlags.IsComponentsV2, components: buildManagerComponents(session, 'trigger') })
+    return
+  }
+
+  if (interaction.isModalSubmit() && action === 'modal-delete') {
+    const confirmation = interaction.fields.getTextInputValue('confirmation').trim().toUpperCase()
+    if (confirmation !== 'DELETE') throw new Error('Deletion cancelled. Type **DELETE** exactly to remove the saved message.')
+    const record = getSavedEmbed(session.guildId, session.selected)
+    if (!record) throw new Error('That saved message no longer exists.')
+    deleteSavedEmbed(session.guildId, record.id)
+    session.selected = listSavedEmbeds(session.guildId)[0]?.id || null
+    session.selectedTrigger = null
     await updateManager(interaction, session)
     return
   }
+
   if (interaction.isChannelSelectMenu()) {
     const channel = interaction.guild.channels.cache.get(interaction.values[0])
     if (!channel) throw new Error('That channel is no longer available.')
@@ -96,6 +122,7 @@ const handleSavedManager = async (interaction, parsed) => {
       addTrigger(session.guildId, record.id, session.pending.trigger, channel.id); session.pending = null; await updateManager(interaction, session); return
     }
   }
+
   if (!interaction.isButton()) return
   if (action === 'edit') {
     const record = getSavedEmbed(session.guildId, session.selected)
@@ -107,15 +134,23 @@ const handleSavedManager = async (interaction, parsed) => {
   }
   if (action === 'send') { await interaction.update({ flags: MessageFlags.IsComponentsV2, components: buildManagerComponents(session, 'send') }); return }
   if (action === 'trigger') { await interaction.showModal(triggerModal(session, 'add')); return }
-  if (action === 'remove-trigger') { await interaction.showModal(triggerModal(session, 'remove')); return }
-  if (action === 'delete-trigger') {
+  if (action === 'edit-trigger') {
     if (!session.selectedTrigger) throw new Error('Select a trigger from the trigger list first.')
     const [recordId, indexText] = session.selectedTrigger.split(':')
     const index = Number(indexText)
     const record = getSavedEmbed(session.guildId, recordId)
     const trigger = record?.triggers?.[index]
     if (!record || !trigger) throw new Error('That trigger no longer exists.')
-    removeTrigger(session.guildId, record.id, trigger.trigger, trigger.channelId)
+    await interaction.showModal(triggerModal(session, 'edit', trigger.trigger, record.id, index))
+    return
+  }
+  if (action === 'delete-trigger') {
+    if (!session.selectedTrigger) throw new Error('Select a trigger from the trigger list first.')
+    const [recordId, indexText] = session.selectedTrigger.split(':')
+    const index = Number(indexText)
+    const record = getSavedEmbed(session.guildId, recordId)
+    if (!record || !record.triggers?.[index]) throw new Error('That trigger no longer exists.')
+    removeTriggerAt(session.guildId, record.id, index)
     session.selectedTrigger = null
     session.selected = record.id
     await updateManager(interaction, session)
@@ -124,7 +159,8 @@ const handleSavedManager = async (interaction, parsed) => {
   if (action === 'delete') {
     const record = getSavedEmbed(session.guildId, session.selected)
     if (!record) throw new Error('That saved message no longer exists.')
-    deleteSavedEmbed(session.guildId, record.id); session.selected = listSavedEmbeds(session.guildId)[0]?.id || null; session.selectedTrigger = null; await updateManager(interaction, session); return
+    await interaction.showModal(deleteSavedModal(session, record.name))
+    return
   }
   if (action === 'back') { session.pending = null; await updateManager(interaction, session); return }
   if (action === 'close') { deleteManagerSession(session.id); await interaction.update({ flags: MessageFlags.IsComponentsV2, components: [statusContainer('## Saved messages closed\n\nRun `/saved-embeds` whenever you want to manage them again.', 0x5865f2)] }) }
