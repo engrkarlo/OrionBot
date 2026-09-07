@@ -13,6 +13,5 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Bot-generated runtime data
-# Keep the directory in Git, but never commit generated saved messages, triggers, or other runtime state.
 data/*
 !data/.gitkeep
