@@ -99,14 +99,14 @@ const buildComponentsV2Embed = (input = {}) => {
   }
 
   if (fields.length) {
+    const fieldText = fields.map((field) => `**${field.name}**\n${field.value}`).join('\n\n')
+    if (fieldText.length > MAX_TEXT) {
+      throw new Error(`Combined field content cannot exceed ${MAX_TEXT} characters.`)
+    }
     container.addSeparatorComponents(
       new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
     )
-    for (const field of fields) {
-      container.addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(`**${field.name}**\n${field.value}`)
-      )
-    }
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(fieldText))
   }
 
   if (image) {
