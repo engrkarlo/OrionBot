@@ -3,7 +3,7 @@ const { getError, isChannelAllowed } = require('../../index')
 const {
   getSession,
   deleteSession,
-  buildReplyComponents,
+  buildReplyPayload,
   buildModalForBlock,
   buildUploadModal,
   colorModal,
@@ -14,7 +14,7 @@ const {
   applyUploadedImage,
   createSession: createBuilderSession,
 } = require('../../embed-builder')
-const { buildComponentsV2Embed, normalizeOptionalColor } = require('../../components-v2-embed')
+const { buildComponentsV2Payload, normalizeOptionalColor } = require('../../components-v2-embed')
 const { getSavedEmbed, listSavedEmbeds, addTrigger, removeTrigger, deleteSavedEmbed } = require('../../saved-embeds')
 const { getSession: getManagerSession, deleteSession: deleteManagerSession, buildManagerComponents, triggerModal } = require('../../saved-embeds-ui')
 
@@ -29,10 +29,16 @@ const errorReply = async (interaction, message) => {
   if (interaction.replied || interaction.deferred) return interaction.followUp(payload).catch(() => {})
   return interaction.reply(payload).catch(() => {})
 }
-const updateEditor = async (interaction, session) => interaction.update({ flags: MessageFlags.IsComponentsV2, components: buildReplyComponents(session) })
+const updateEditor = async (interaction, session) => {
+  const payload = buildReplyPayload(session)
+  return interaction.update({ flags: MessageFlags.IsComponentsV2, components: payload.components, files: payload.files, attachments: [] })
+}
 const updateManager = async (interaction, session) => interaction.update({ flags: MessageFlags.IsComponentsV2, components: buildManagerComponents(session) })
 const statusContainer = (content, color) => new ContainerBuilder().setAccentColor(color).addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
-const sendSavedToChannel = async (channel, record) => channel.send({ flags: MessageFlags.IsComponentsV2, components: buildComponentsV2Embed({ blocks: record.blocks, color: record.color, sourceId: record.id }) })
+const sendSavedToChannel = async (channel, record) => {
+  const payload = buildComponentsV2Payload({ blocks: record.blocks, color: record.color, sourceId: record.id })
+  return channel.send({ flags: MessageFlags.IsComponentsV2, components: payload.components, files: payload.files })
+}
 
 const handleStyledButton = async (interaction, sourceId, index) => {
   const numericIndex = Number(index)
@@ -95,7 +101,9 @@ const handleSavedManager = async (interaction, parsed) => {
     const record = getSavedEmbed(session.guildId, session.selected)
     if (!record) throw new Error('That saved message no longer exists.')
     const builderSession = createBuilderSession(interaction.user.id, interaction.channelId, record)
-    await interaction.update({ flags: MessageFlags.IsComponentsV2, components: buildReplyComponents(builderSession) }); return
+    const payload = buildReplyPayload(builderSession)
+    await interaction.update({ flags: MessageFlags.IsComponentsV2, components: payload.components, files: payload.files, attachments: [] })
+    return
   }
   if (action === 'send') { await interaction.update({ flags: MessageFlags.IsComponentsV2, components: buildManagerComponents(session, 'send') }); return }
   if (action === 'trigger') { await interaction.showModal(triggerModal(session, 'add')); return }
@@ -172,20 +180,17 @@ module.exports = async (interaction) => {
       session.blocks.splice(session.selected, 1); session.selected = Math.max(0, Math.min(session.selected, session.blocks.length - 1)); session.preview = false; await updateEditor(interaction, session); return
     }
     if (action === 'preview') { session.preview = !session.preview; await updateEditor(interaction, session); return }
-    if (action === 'upload') {
-      const block = session.blocks[session.selected]
-      if (!block || !['image', 'section', 'file'].includes(block.type)) return errorReply(interaction, 'Select an **Image**, **Section**, or **File** component first, then press **Upload**.')
-      await interaction.showModal(buildUploadModal(session)); return
-    }
     if (action === 'send') {
-      const components = buildComponentsV2Embed({ blocks: session.blocks, color: session.color, sourceId: `session-${session.id}` })
-      await interaction.channel.send({ flags: MessageFlags.IsComponentsV2, components })
-      await interaction.update({ flags: MessageFlags.IsComponentsV2, components: [statusContainer('## Sent!\n\nYour Components V2 message has been posted here. You can keep editing or save it for reuse.', 0x57f287), ...buildReplyComponents(session)] }); return
+      const payload = buildComponentsV2Payload({ blocks: session.blocks, color: session.color, sourceId: `session-${session.id}` })
+      await interaction.channel.send({ flags: MessageFlags.IsComponentsV2, components: payload.components, files: payload.files })
+      const reply = buildReplyPayload(session)
+      await interaction.update({ flags: MessageFlags.IsComponentsV2, components: [statusContainer('## Sent!\n\nYour Components V2 message has been posted here. You can keep editing or save it for reuse.', 0x57f287), ...reply.components], files: reply.files, attachments: [] })
+      return
     }
     if (action === 'reset') {
       session.savedEmbedId = null; session.name = ''; session.color = null; session.blocks = [{ type: 'text', content: '## Welcome to my server!\n\nEdit this message to get started.' }, { type: 'separator', divider: true, spacing: 'small' }]; session.selected = 0; session.preview = false; await updateEditor(interaction, session); return
     }
-    if (action === 'close') { deleteSession(session.id); await interaction.update({ flags: MessageFlags.IsComponentsV2, components: [statusContainer('## Builder closed\n\nRun `/embed-builder` whenever you want to create another one.', 0x5865f2)] }) }
+    if (action === 'close') { deleteSession(session.id); await interaction.update({ flags: MessageFlags.IsComponentsV2, components: [statusContainer('## Builder closed\n\nRun `/embed-builder` whenever you want to create another one.', 0x5865f2)], attachments: [] }) }
   } catch (error) {
     getError(error, 'embedBuilderInteraction')
     await errorReply(interaction, `**Components V2 error:** ${error.message}`)
