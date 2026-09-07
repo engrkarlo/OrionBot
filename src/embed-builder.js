@@ -65,7 +65,6 @@ const buildEditorComponents = (session) => {
   const colorLabel = session.color ? session.color.toUpperCase() : 'None'
   const savedLabel = session.savedEmbedId ? `Saved as **${session.name || 'Unnamed'}**` : 'Not saved yet'
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ✦ Components V2 Builder\n\n**${builderSummary(session)}**\nSelected: **${selected ? componentLabel(selected, session.selected) : 'None'}**\nAccent: **${colorLabel}** • ${savedLabel}\n\nBuild the layout visually. Sections can use thumbnails or buttons, files can be shown inline, images use Discord's native file picker, and colored buttons use Discord's built-in styles.`))
-
   const blockOptions = session.blocks.length ? session.blocks.slice(0, 25).map((block, index) => ({ label: componentLabel(block, index), value: String(index), default: index === session.selected })) : [{ label: 'No components yet', value: 'none' }]
   container.addActionRowComponents(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`eb:${session.id}:select`).setPlaceholder('Select a component').addOptions(blockOptions)))
   container.addActionRowComponents(new ActionRowBuilder().addComponents(
@@ -137,7 +136,9 @@ const buildUploadModal = (session) => {
   if (!block || !['image', 'section', 'file'].includes(block.type)) return null
   const kind = block.type === 'section' ? 'thumbnail' : block.type
   const multiple = block.type === 'image'
-  const upload = new FileUploadBuilder({ custom_id: 'file', min_values: 0, max_values: multiple ? 10 : 1, required: false })
+  const uploadData = { custom_id: 'file', min_values: 0, max_values: multiple ? 10 : 1, required: false }
+  if (multiple) uploadData.file_types = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+  const upload = new FileUploadBuilder(uploadData)
   const labelText = block.type === 'section' ? 'Choose a thumbnail' : block.type === 'file' ? 'Choose a file' : 'Choose images'
   const label = new LabelBuilder().setLabel(labelText).setDescription(multiple ? 'Drop files here or browse. You can select multiple images for a gallery.' : 'Drop a file here or browse. URL below is optional.').setFileUploadComponent(upload)
   const modal = new ModalBuilder().setCustomId(`eb:${session.id}:modal-upload:${session.selected}:${kind}`).setTitle(block.type === 'section' ? 'Upload Thumbnail' : block.type === 'file' ? 'Upload File' : 'Upload Images')
@@ -215,16 +216,16 @@ const applyUploadedImage = (session, interaction, index, kind) => {
   if (url && !isHttpUrl(url)) throw new Error('URL must start with http:// or https://.')
   if (block.type === 'file' && !['true', 'false'].includes(spoiler)) throw new Error('Spoiler must be true or false.')
   const files = interaction.fields.getUploadedFiles('file', false)
-  const uploaded = files?.filter((attachment) => block.type !== 'image' || attachment.contentType?.startsWith('image/')) || []
+  const uploaded = files ? [...files.values()].filter((attachment) => block.type !== 'image' || attachment.contentType?.startsWith('image/')) : []
   if (block.type === 'image') {
-    const urls = [...uploaded.values()].map((attachment) => attachment.url)
+    const urls = uploaded.map((attachment) => attachment.url)
     if (!urls.length && url) urls.push(url)
     if (!urls.length) throw new Error('Upload at least one image or enter an image URL.')
     session.blocks.splice(index, 1, ...urls.map((itemUrl) => ({ type: 'image', url: itemUrl })))
     session.selected = index
     return
   }
-  const attachment = uploaded.first()
+  const attachment = uploaded[0]
   const finalUrl = attachment?.url || url
   if (!finalUrl) throw new Error('Upload a file or enter a URL.')
   if (block.type === 'section') block.thumbnail = finalUrl
