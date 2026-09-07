@@ -156,12 +156,16 @@ const buildUploadModal = (session) => {
   const block = session.blocks[session.selected]
   if (!block || !['image', 'section'].includes(block.type)) return null
   const kind = block.type === 'section' ? 'thumbnail' : 'image'
-  const upload = new FileUploadBuilder()
-    .setCustomId('file')
-    .setMinValues(1)
-    .setMaxValues(1)
-    .setRequired(true)
-    .setFileTypes('.png', '.jpg', '.jpeg', '.gif', '.webp')
+  // Pass the API fields directly for compatibility with the discord.js builders
+  // version used by the bot. Some versions expose setFileTypes(), while others
+  // only accept file_types through the constructor.
+  const upload = new FileUploadBuilder({
+    custom_id: 'file',
+    min_values: 1,
+    max_values: 1,
+    required: true,
+    file_types: ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+  })
   const label = new LabelBuilder()
     .setLabel(block.type === 'section' ? 'Choose a thumbnail image' : 'Choose an image')
     .setDescription('Pick an image from your computer. It will be used in the selected component.')
