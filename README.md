@@ -1,6 +1,6 @@
 # OrionBot
 
-OrionBot is a configurable Discord bot for Minecraft communities. It reports server information, keeps Discord status surfaces current, and adds community feedback tools for suggestions, reviews, and away status.
+OrionBot is a configurable Discord bot for Minecraft communities. It reports server information, keeps Discord status surfaces current, and adds community feedback tools, away status, and a visual Discord Components V2 message builder.
 
 ## Fork notice
 
@@ -21,6 +21,25 @@ This project is a fork of [NooberPro/minecraft-discord-bot](https://github.com/N
 - **Multilingual interface** — Includes English, Spanish, German, French, Portuguese, Russian, Ukrainian, and Dutch translation files.
 - **Console logging and error handling** — Provides configurable startup, server, error, and debug logging.
 - **Free-hosting friendly checks** — Supports an online-check mode suitable for servers that report an empty player limit while starting.
+
+### Components V2 message builder
+
+OrionBot includes a visual builder for creating Discord Components V2 messages without writing JSON.
+
+- **Visual message builder** — Build and preview Components V2 messages directly through Discord interactions.
+- **Containers** — Create structured message containers with optional accent colors.
+- **Text and layout components** — Add text displays, separators, sections, and configurable spacing.
+- **Media galleries** — Select multiple images and combine them into a single media gallery.
+- **Images and files** — Upload images and files through Discord's native file picker and use them directly in Components V2 messages.
+- **Sections and thumbnails** — Create sections with text, thumbnails, and optional buttons.
+- **Buttons** — Add Primary, Secondary, Success, Danger, and Link buttons with configurable labels and responses.
+- **Fields** — Add convenient field-style content blocks to organize information.
+- **Saved messages** — Save completed Components V2 messages for later editing and reuse.
+- **Send to channel** — Send a saved message to another Discord channel when needed.
+- **Triggers** — Attach message triggers to saved messages so they can be reused automatically.
+- **Independent trigger management** — Edit or delete triggers without deleting the saved message they belong to.
+- **Attachment-aware rendering** — Handles Components V2 file attachments using Discord's required attachment references.
+- **Reusable workflow** — Edit, preview, save, send, and manage Components V2 messages from Discord instead of manually maintaining JSON payloads.
 
 ### Added in this fork
 
@@ -58,8 +77,25 @@ The bot supports slash commands and, where enabled, configurable prefix commands
 | `/setup`, `/setstatus` | Configure server details and the live status message. |
 | `/away`, `/away-test` | Set, clear, or preview an away status. |
 | `/review`, `/review-panel`, `/review-delete` | Submit, publish, and moderate reviews. |
+| `/embed-builder` | Open the visual Components V2 message builder. |
+| `/saved-embeds` | Manage saved Components V2 messages and their triggers. |
 
 Suggestions are submitted by sending a message in a configured suggestion channel rather than by using a slash command.
+
+## Components V2 workflow
+
+The Components V2 builder is designed around a simple Discord-first workflow:
+
+1. Run `/embed-builder`.
+2. Add and arrange the components you want to use.
+3. Configure text, colors, buttons, images, files, separators, and sections through the interactive builder.
+4. Preview the message before sending or saving it.
+5. Save the message if you want to reuse it later.
+6. Use `/saved-embeds` to edit, send, or manage saved messages and triggers.
+
+Saved messages and triggers are managed separately, so removing a trigger does not remove the reusable saved message.
+
+> **Note:** Components V2 file components require actual message attachments. Uploaded files are therefore handled as attachments rather than being treated as ordinary image URLs.
 
 ## Setup
 
