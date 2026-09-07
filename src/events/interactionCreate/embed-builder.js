@@ -1,14 +1,15 @@
 const { ContainerBuilder, MessageFlags, TextDisplayBuilder } = require('discord.js')
 const { getError, isChannelAllowed } = require('../../index')
 const {
-  createSession,
   getSession,
   deleteSession,
   buildReplyComponents,
   buildModalForBlock,
+  buildUploadModal,
   colorModal,
   addBlock,
   updateFromModal,
+  applyUploadedImage,
 } = require('../../embed-builder')
 const { buildComponentsV2Embed, normalizeColor } = require('../../components-v2-embed')
 
@@ -25,10 +26,7 @@ const errorReply = async (interaction, message) => {
 }
 
 const updateEditor = async (interaction, session) => {
-  await interaction.update({
-    flags: MessageFlags.IsComponentsV2,
-    components: buildReplyComponents(session),
-  })
+  await interaction.update({ flags: MessageFlags.IsComponentsV2, components: buildReplyComponents(session) })
 }
 
 const statusContainer = (content, color) => new ContainerBuilder()
@@ -47,12 +45,10 @@ module.exports = async (interaction) => {
       await errorReply(interaction, 'This builder session has expired. Run `/embed-builder` again to start a new one.')
       return
     }
-
     if (interaction.channelId !== session.channelId) {
       await errorReply(interaction, 'This builder can only be used in the channel where it was started.')
       return
     }
-
     if (!isChannelAllowed(interaction.channelId, false)) {
       await errorReply(interaction, 'Commands are disabled in this channel.')
       return
@@ -68,7 +64,6 @@ module.exports = async (interaction) => {
         await updateEditor(interaction, session)
         return
       }
-
       if (action === 'add') {
         addBlock(session, interaction.values[0])
         await updateEditor(interaction, session)
@@ -82,12 +77,18 @@ module.exports = async (interaction) => {
         await updateEditor(interaction, session)
         return
       }
-
       if (action === 'modal') {
         const index = Number(parsed.action[1])
         if (!Number.isInteger(index) || !session.blocks[index]) throw new Error('That component no longer exists.')
         session.selected = index
         updateFromModal(session, interaction)
+        await updateEditor(interaction, session)
+        return
+      }
+      if (action === 'modal-upload') {
+        const index = Number(parsed.action[1])
+        const kind = parsed.action[2]
+        applyUploadedImage(session, interaction, index, kind)
         await updateEditor(interaction, session)
         return
       }
@@ -139,15 +140,9 @@ module.exports = async (interaction) => {
         await errorReply(interaction, 'Select an **Image** or **Section** component first, then press **Add Image**.')
         return
       }
-      session.pendingUpload = {
-        index: session.selected,
-        kind: block.type === 'section' ? 'thumbnail' : 'image',
-        expiresAt: Date.now() + 2 * 60 * 1000,
-      }
-      await interaction.reply({
-        content: `🖼️ Send the image as your next Discord message in this channel. I'll use it as the ${block.type === 'section' ? 'section thumbnail' : 'image'}. You have 2 minutes.`,
-        flags: MessageFlags.Ephemeral,
-      })
+      const modal = buildUploadModal(session)
+      if (!modal) throw new Error('That component cannot accept an image.')
+      await interaction.showModal(modal)
       return
     }
 
@@ -170,7 +165,6 @@ module.exports = async (interaction) => {
       ]
       session.selected = 0
       session.preview = false
-      session.pendingUpload = null
       await updateEditor(interaction, session)
       return
     }
