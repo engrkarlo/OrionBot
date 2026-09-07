@@ -43,34 +43,22 @@ const buildManagerComponents = (session, mode = 'manager') => {
   const container = new ContainerBuilder().setAccentColor(0x5865f2)
   const heading = selected ? `Selected: **${selected.name}**` : 'Select a saved message to manage it.'
   const modeText = mode === 'send' ? '\n\nChoose a channel below to send the selected message.' : mode === 'trigger' ? '\n\nChoose a channel where the trigger should work.' : ''
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
-    `## ✦ Saved Components V2\n\n**${records.length} saved message${records.length === 1 ? '' : 's'}**\n${heading}${modeText}`
-  ))
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ✦ Saved Components V2\n\n**${records.length} saved message${records.length === 1 ? '' : 's'}**\n${heading}${modeText}`))
 
   const options = records.length
     ? records.slice(0, 25).map((record) => ({ label: record.name.slice(0, 100), value: record.id, description: `${record.blocks.length} components${record.triggers?.length ? ` • ${record.triggers.length} trigger${record.triggers.length === 1 ? '' : 's'}` : ''}`, default: record.id === session.selected }))
     : [{ label: 'No saved messages yet', value: 'none' }]
-  container.addActionRowComponents(new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder().setCustomId(`sem:${session.id}:select`).setPlaceholder('Select a saved message').addOptions(options)
-  ))
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`sem:${session.id}:select`).setPlaceholder('Select a saved message').addOptions(options)))
 
   if (mode === 'send') {
-    container.addActionRowComponents(new ActionRowBuilder().addComponents(
-      new ChannelSelectMenuBuilder().setCustomId(`sem:${session.id}:send-channel`).setPlaceholder('Choose a destination channel').setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildVoice, ChannelType.GuildStageVoice).setMinValues(1).setMaxValues(1)
-    ))
-    container.addActionRowComponents(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`sem:${session.id}:back`).setLabel('Back').setStyle(ButtonStyle.Secondary)
-    ))
+    container.addActionRowComponents(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`sem:${session.id}:send-channel`).setPlaceholder('Choose a destination channel').setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildVoice, ChannelType.GuildStageVoice).setMinValues(1).setMaxValues(1)))
+    container.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`sem:${session.id}:back`).setLabel('Back').setStyle(ButtonStyle.Secondary)))
     return [container]
   }
 
   if (mode === 'trigger') {
-    container.addActionRowComponents(new ActionRowBuilder().addComponents(
-      new ChannelSelectMenuBuilder().setCustomId(`sem:${session.id}:trigger-channel`).setPlaceholder('Choose a channel for this trigger').setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setMinValues(1).setMaxValues(1)
-    ))
-    container.addActionRowComponents(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`sem:${session.id}:back`).setLabel('Back').setStyle(ButtonStyle.Secondary)
-    ))
+    container.addActionRowComponents(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`sem:${session.id}:trigger-channel`).setPlaceholder('Choose a channel for this trigger').setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setMinValues(1).setMaxValues(1)))
+    container.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`sem:${session.id}:back`).setLabel('Back').setStyle(ButtonStyle.Secondary)))
     return [container]
   }
 
@@ -78,18 +66,15 @@ const buildManagerComponents = (session, mode = 'manager') => {
     new ButtonBuilder().setCustomId(`sem:${session.id}:edit`).setLabel('Edit').setStyle(ButtonStyle.Primary).setDisabled(!selected),
     new ButtonBuilder().setCustomId(`sem:${session.id}:send`).setLabel('Send to Channel').setStyle(ButtonStyle.Success).setDisabled(!selected),
     new ButtonBuilder().setCustomId(`sem:${session.id}:trigger`).setLabel('Add Trigger').setStyle(ButtonStyle.Secondary).setDisabled(!selected),
+    new ButtonBuilder().setCustomId(`sem:${session.id}:remove-trigger`).setLabel('Remove Trigger').setStyle(ButtonStyle.Secondary).setDisabled(!selected || !selected.triggers?.length),
     new ButtonBuilder().setCustomId(`sem:${session.id}:delete`).setLabel('Delete').setStyle(ButtonStyle.Danger).setDisabled(!selected),
   ))
-  container.addActionRowComponents(new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`sem:${session.id}:close`).setLabel('Close').setStyle(ButtonStyle.Secondary),
-  ))
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`sem:${session.id}:close`).setLabel('Close').setStyle(ButtonStyle.Secondary)))
   return [container]
 }
 
-const triggerModal = (session) => new ModalBuilder().setCustomId(`sem:${session.id}:modal-trigger`).setTitle('Add message trigger').addComponents(
-  new ActionRowBuilder().addComponents(
-    new TextInputBuilder().setCustomId('trigger').setLabel('Trigger text').setPlaceholder('for example: !rules').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100)
-  )
+const triggerModal = (session, mode = 'add') => new ModalBuilder().setCustomId(`sem:${session.id}:modal-trigger:${mode}`).setTitle(mode === 'remove' ? 'Remove message trigger' : 'Add message trigger').addComponents(
+  new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trigger').setLabel('Trigger text').setPlaceholder('for example: !rules').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100))
 )
 
 module.exports = { sessions, createSession, getSession, deleteSession, buildManagerComponents, triggerModal }
