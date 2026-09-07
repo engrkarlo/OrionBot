@@ -1,4 +1,4 @@
-const { MessageFlags } = require('discord.js')
+const { ContainerBuilder, MessageFlags, TextDisplayBuilder } = require('discord.js')
 const { getError, isChannelAllowed } = require('../../index')
 const {
   createSession,
@@ -30,6 +30,10 @@ const updateEditor = async (interaction, session) => {
     components: buildReplyComponents(session),
   })
 }
+
+const statusContainer = (content, color) => new ContainerBuilder()
+  .setAccentColor(color)
+  .addTextDisplayComponents(new TextDisplayBuilder().setContent(content))
 
 module.exports = async (interaction) => {
   try {
@@ -118,7 +122,7 @@ module.exports = async (interaction) => {
       if (!session.blocks.length) throw new Error('There are no components to delete.')
       session.blocks.splice(session.selected, 1)
       session.selected = Math.max(0, Math.min(session.selected, session.blocks.length - 1))
-      if (!session.blocks.length) session.preview = false
+      session.preview = false
       await updateEditor(interaction, session)
       return
     }
@@ -149,20 +153,11 @@ module.exports = async (interaction) => {
 
     if (action === 'send') {
       const components = buildComponentsV2Embed({ blocks: session.blocks, color: session.color })
-      await interaction.channel.send({
-        flags: MessageFlags.IsComponentsV2,
-        components,
-      })
+      await interaction.channel.send({ flags: MessageFlags.IsComponentsV2, components })
       deleteSession(session.id)
       await interaction.update({
         flags: MessageFlags.IsComponentsV2,
-        components: [
-          require('discord.js').ContainerBuilder.from({
-            type: 17,
-            accent_color: normalizeColor('#57F287'),
-            components: [{ type: 10, content: '## Sent!\n\nYour Components V2 message has been posted in this channel.' }],
-          }),
-        ],
+        components: [statusContainer('## Sent!\n\nYour Components V2 message has been posted in this channel.', 0x57f287)],
       })
       return
     }
@@ -184,12 +179,7 @@ module.exports = async (interaction) => {
       deleteSession(session.id)
       await interaction.update({
         flags: MessageFlags.IsComponentsV2,
-        components: [
-          require('discord.js').ContainerBuilder.from({
-            type: 17,
-            components: [{ type: 10, content: '## Builder closed\n\nRun `/embed-builder` whenever you want to create another message.' }],
-          }),
-        ],
+        components: [statusContainer('## Builder closed\n\nRun `/embed-builder` whenever you want to create another message.', 0x5865f2)],
       })
     }
   } catch (error) {
