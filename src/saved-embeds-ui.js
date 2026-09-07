@@ -75,23 +75,31 @@ const buildManagerComponents = (session, mode = 'manager') => {
   }
 
   container.addActionRowComponents(new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`sem:${session.id}:edit`).setLabel('Edit').setStyle(ButtonStyle.Primary).setDisabled(!selected),
+    new ButtonBuilder().setCustomId(`sem:${session.id}:edit`).setLabel('Edit Message').setStyle(ButtonStyle.Primary).setDisabled(!selected),
     new ButtonBuilder().setCustomId(`sem:${session.id}:send`).setLabel('Send to Channel').setStyle(ButtonStyle.Success).setDisabled(!selected),
     new ButtonBuilder().setCustomId(`sem:${session.id}:trigger`).setLabel('Add Trigger').setStyle(ButtonStyle.Secondary).setDisabled(!selected),
+    new ButtonBuilder().setCustomId(`sem:${session.id}:edit-trigger`).setLabel('Edit Trigger').setStyle(ButtonStyle.Secondary).setDisabled(!selectedTrigger),
     new ButtonBuilder().setCustomId(`sem:${session.id}:delete-trigger`).setLabel('Delete Trigger').setStyle(ButtonStyle.Secondary).setDisabled(!selectedTrigger),
-    new ButtonBuilder().setCustomId(`sem:${session.id}:delete`).setLabel('Delete').setStyle(ButtonStyle.Danger).setDisabled(!selected),
+  ))
+
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`sem:${session.id}:delete`).setLabel('Delete Saved Message').setStyle(ButtonStyle.Danger).setDisabled(!selected),
+    new ButtonBuilder().setCustomId(`sem:${session.id}:close`).setLabel('Close').setStyle(ButtonStyle.Secondary),
   ))
 
   const triggerOptions = triggers.length
     ? triggers.map((item) => ({ label: `${item.trigger.trigger} • ${item.record.name}`.slice(0, 100), value: `${item.record.id}:${item.index}`, description: `Replies in <#${item.trigger.channelId}>`, default: selectedTrigger ? selectedTrigger.record.id === item.record.id && selectedTrigger.index === item.index : false }))
     : [{ label: 'No triggers configured', value: 'none', description: 'Add a trigger to a saved message first.' }]
-  container.addActionRowComponents(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`sem:${session.id}:trigger-select`).setPlaceholder('All saved triggers — select one to delete').addOptions(triggerOptions)))
-  container.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`sem:${session.id}:close`).setLabel('Close').setStyle(ButtonStyle.Secondary)))
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`sem:${session.id}:trigger-select`).setPlaceholder('All saved triggers — select one to edit or delete').addOptions(triggerOptions)))
   return [container]
 }
 
-const triggerModal = (session, mode = 'add') => new ModalBuilder().setCustomId(`sem:${session.id}:modal-trigger:${mode}`).setTitle(mode === 'remove' ? 'Remove message trigger' : 'Add message trigger').addComponents(
-  new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trigger').setLabel('Trigger text').setPlaceholder('for example: !rules').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100))
+const triggerModal = (session, mode = 'add', trigger = '', recordId = '', index = '') => new ModalBuilder().setCustomId(`sem:${session.id}:modal-trigger:${mode}:${recordId}:${index}`).setTitle(mode === 'edit' ? 'Edit message trigger' : mode === 'remove' ? 'Remove message trigger' : 'Add message trigger').addComponents(
+  new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('trigger').setLabel('Trigger text').setPlaceholder('for example: !rules').setValue(trigger).setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100))
 )
 
-module.exports = { sessions, createSession, getSession, deleteSession, buildManagerComponents, triggerModal }
+const deleteSavedModal = (session, name) => new ModalBuilder().setCustomId(`sem:${session.id}:modal-delete`).setTitle('Delete saved message').addComponents(
+  new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('confirmation').setLabel(`Type DELETE to remove ${name}`.slice(0, 45)).setPlaceholder('DELETE').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(6))
+)
+
+module.exports = { sessions, createSession, getSession, deleteSession, buildManagerComponents, triggerModal, deleteSavedModal }
