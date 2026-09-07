@@ -10,9 +10,9 @@ module.exports = async (message) => {
   for (const record of matches) {
     try {
       const components = buildComponentsV2Embed({ blocks: record.blocks, color: record.color, sourceId: record.id })
-      await message.channel.send({ flags: MessageFlags.IsComponentsV2, components })
+      await message.reply({ flags: MessageFlags.IsComponentsV2, components, allowedMentions: { parse: [] } })
     } catch (error) {
-      console.error(`[saved-embeds] Failed to send "${record.name}":`, error)
+      console.error(`[saved-embeds] Failed to reply with "${record.name}":`, error)
     }
   }
 }
