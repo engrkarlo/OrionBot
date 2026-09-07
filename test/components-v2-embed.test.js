@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
-const { buildComponentsV2Embed, normalizeBlocks, normalizeButtons, normalizeColor, normalizeFields } = require('../src/components-v2-embed')
+const { buildComponentsV2Embed, buildComponentsV2Payload, normalizeBlocks, normalizeButtons, normalizeColor, normalizeFields } = require('../src/components-v2-embed')
 
 const getType = (component) => component.toJSON().type
 
@@ -46,14 +46,17 @@ test('keeps buttons inside the container and preserves their layout position', (
 })
 
 test('supports colored interactive buttons and V2 file components', () => {
-  const container = buildComponentsV2Embed({ blocks: [
+  const payload = buildComponentsV2Payload({ blocks: [
     { type: 'button', label: 'Open', style: 'primary', response: 'Opened.' },
     { type: 'file', url: 'https://example.com/guide.pdf', spoiler: true },
     { type: 'section', content: 'Action', button: { label: 'Go', style: 'success', response: 'Done.' } },
-  ] })[0].toJSON()
+  ] })
+  const container = payload.components[0].toJSON()
   const row = container.components.find((component) => component.type === 1)
   assert.equal(row.components[0].style, 1)
-  assert.equal(container.components.some((component) => component.type === 13), true)
+  const file = container.components.find((component) => component.type === 13)
+  assert.equal(file.file.url, 'attachment://guide.pdf')
+  assert.deepEqual(payload.files, [{ attachment: 'https://example.com/guide.pdf', name: 'guide.pdf' }])
   const section = container.components.find((component) => component.type === 9)
   assert.equal(section.accessory.style, 3)
 })
