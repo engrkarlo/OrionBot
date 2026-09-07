@@ -11,7 +11,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js')
-const { buildComponentsV2Embed, isHttpUrl, normalizeOptionalColor } = require('./components-v2-embed')
+const { buildComponentsV2Embed, buildComponentsV2Payload, isHttpUrl, normalizeOptionalColor } = require('./components-v2-embed')
 const { createSavedEmbed, updateSavedEmbed, getSavedEmbed } = require('./saved-embeds')
 
 const sessions = new Map()
@@ -88,7 +88,6 @@ const buildEditorComponents = (session) => {
     new ButtonBuilder().setCustomId(`eb:${session.id}:duplicate`).setLabel('Duplicate').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`eb:${session.id}:reset`).setLabel('Reset').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`eb:${session.id}:preview`).setLabel(session.preview ? 'Hide Preview' : 'Preview').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`eb:${session.id}:upload`).setLabel('Upload').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`eb:${session.id}:save`).setLabel(session.savedEmbedId ? 'Save Changes' : 'Save').setStyle(ButtonStyle.Primary),
   ))
   container.addActionRowComponents(new ActionRowBuilder().addComponents(
@@ -109,6 +108,17 @@ const buildReplyComponents = (session) => {
   }
 }
 
+const buildReplyPayload = (session) => {
+  const editor = buildEditorComponents(session)
+  if (!session.preview) return { components: editor, files: [] }
+  try {
+    const preview = buildComponentsV2Payload({ blocks: session.blocks, color: session.color, sourceId: session.savedEmbedId || `session-${session.id}` })
+    return { components: [preview.components[0], ...editor], files: preview.files }
+  } catch (error) {
+    return { components: [new ContainerBuilder().setAccentColor(0xed4245).addTextDisplayComponents(new TextDisplayBuilder().setContent(`### Preview unavailable\n\n${error.message}`)), ...editor], files: [] }
+  }
+}
+
 const textInput = (id, label, value, style = TextInputStyle.Short, required = true, maxLength) => {
   const builder = new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(required)
   if (value != null) builder.setValue(String(value).slice(0, 4000))
@@ -119,11 +129,9 @@ const textInput = (id, label, value, style = TextInputStyle.Short, required = tr
 const buildModalForBlock = (session) => {
   const block = session.blocks[session.selected]
   if (!block) return null
+  if (['image', 'file', 'section'].includes(block.type)) return buildUploadModal(session)
   const modal = new ModalBuilder().setCustomId(`eb:${session.id}:modal:${session.selected}:${block.type}`).setTitle(`Edit ${componentLabel(block, session.selected).replace(/^\d+\. /, '')}`)
   if (block.type === 'text') modal.addComponents(textInput('content', 'Text / Markdown', block.content, TextInputStyle.Paragraph, true, 4000))
-  else if (block.type === 'section') modal.addComponents(textInput('content', 'Section text / Markdown', block.content, TextInputStyle.Paragraph, true, 4000), textInput('thumbnail', 'Thumbnail URL (optional)', block.thumbnail || '', TextInputStyle.Short, false, 2000), textInput('button_label', 'Button label (optional)', block.button?.label || '', TextInputStyle.Short, false, 80), textInput('button_url', 'Button URL (optional)', block.button?.url || '', TextInputStyle.Short, false, 512))
-  else if (block.type === 'image') modal.addComponents(textInput('url', 'Image URL (optional)', block.url || '', TextInputStyle.Short, false, 2000))
-  else if (block.type === 'file') modal.addComponents(textInput('url', 'File URL (optional)', block.url || '', TextInputStyle.Short, false, 2000), textInput('spoiler', 'Spoiler? (true or false)', block.spoiler ? 'true' : 'false', TextInputStyle.Short, true, 5))
   else if (block.type === 'field') modal.addComponents(textInput('name', 'Field name', block.name, TextInputStyle.Short, true, 256), textInput('value', 'Field value', block.value, TextInputStyle.Paragraph, true, 1024))
   else if (block.type === 'button') modal.addComponents(textInput('label', 'Button label', block.label, TextInputStyle.Short, true, 80), textInput('style', 'Button style', block.style || 'link', TextInputStyle.Short, true, 9), textInput('url', 'URL (required for link)', block.url || '', TextInputStyle.Short, false, 512), textInput('response', 'Response for colored buttons', block.response || '', TextInputStyle.Paragraph, false, 2000))
   else if (block.type === 'footer') modal.addComponents(textInput('content', 'Footer text', block.content, TextInputStyle.Short, true, 2048))
@@ -163,21 +171,7 @@ const updateFromModal = (session, interaction) => {
   if (!block) throw new Error('That component no longer exists.')
   const get = (id) => interaction.fields.getTextInputValue(id)
   if (block.type === 'text') block.content = get('content')
-  else if (block.type === 'section') {
-    block.content = get('content'); block.thumbnail = get('thumbnail').trim()
-    const buttonLabel = get('button_label').trim(); const buttonUrl = get('button_url').trim()
-    if (block.thumbnail && !isHttpUrl(block.thumbnail)) throw new Error('Thumbnail URL must start with http:// or https://.')
-    block.button = buttonLabel ? { label: buttonLabel, style: 'link', url: buttonUrl, response: '' } : null
-    if (buttonLabel && !isHttpUrl(buttonUrl)) throw new Error('Section button URL must start with http:// or https://.')
-    if (block.thumbnail && block.button) throw new Error('A Section can have either a thumbnail or a button, not both.')
-  } else if (block.type === 'image') {
-    const url = get('url').trim(); if (url && !isHttpUrl(url)) throw new Error('Image URL must start with http:// or https://.'); block.url = url
-  } else if (block.type === 'file') {
-    const url = get('url').trim(); const spoiler = get('spoiler').trim().toLowerCase()
-    if (url && !isHttpUrl(url)) throw new Error('File URL must start with http:// or https://.')
-    if (!['true', 'false'].includes(spoiler)) throw new Error('Spoiler must be true or false.')
-    block.url = url; block.spoiler = spoiler === 'true'
-  } else if (block.type === 'field') { block.name = get('name'); block.value = get('value')
+  else if (block.type === 'field') { block.name = get('name'); block.value = get('value')
   } else if (block.type === 'button') {
     const style = get('style').trim().toLowerCase(); const label = get('label').trim(); const url = get('url').trim(); const response = get('response').trim()
     if (!['link', 'primary', 'secondary', 'success', 'danger'].includes(style)) throw new Error('Button style must be link, primary, secondary, success or danger.')
@@ -218,18 +212,30 @@ const applyUploadedImage = (session, interaction, index, kind) => {
   const files = interaction.fields.getUploadedFiles('file', false)
   const uploaded = files ? [...files.values()].filter((attachment) => block.type !== 'image' || attachment.contentType?.startsWith('image/')) : []
   if (block.type === 'image') {
-    const urls = uploaded.map((attachment) => attachment.url)
-    if (!urls.length && url) urls.push(url)
-    if (!urls.length) throw new Error('Upload at least one image or enter an image URL.')
-    session.blocks.splice(index, 1, ...urls.map((itemUrl) => ({ type: 'image', url: itemUrl })))
-    session.selected = index
+    const imageIndexes = []
+    for (let cursor = index; cursor >= 0 && session.blocks[cursor]?.type === 'image'; cursor -= 1) imageIndexes.unshift(cursor)
+    for (let cursor = index + 1; cursor < session.blocks.length && session.blocks[cursor]?.type === 'image'; cursor += 1) imageIndexes.push(cursor)
+    const start = imageIndexes[0] ?? index
+    const count = imageIndexes.length || 1
+    const images = uploaded.map((attachment) => ({ type: 'image', url: attachment.url }))
+    if (!images.length && url) images.push({ type: 'image', url })
+    if (!images.length) throw new Error('Upload at least one image or enter an image URL.')
+    session.blocks.splice(start, count, ...images)
+    session.selected = start
     return
   }
   const attachment = uploaded[0]
   const finalUrl = attachment?.url || url
   if (!finalUrl) throw new Error('Upload a file or enter a URL.')
-  if (block.type === 'section') block.thumbnail = finalUrl
-  else { block.url = finalUrl; block.spoiler = spoiler === 'true' }
+  if (block.type === 'section') {
+    block.thumbnail = finalUrl
+    block.button = null
+  } else {
+    block.url = finalUrl
+    block.sourceUrl = finalUrl
+    block.name = attachment?.name || block.name || ''
+    block.spoiler = spoiler === 'true'
+  }
   session.selected = index
 }
 
@@ -240,4 +246,4 @@ const refreshSavedSession = (session) => {
   session.name = saved.name; session.color = saved.color; session.blocks = structuredClone(saved.blocks); session.selected = Math.min(session.selected, Math.max(0, session.blocks.length - 1)); return saved
 }
 
-module.exports = { sessions, createSession, getSession, deleteSession, buildEditorComponents, buildReplyComponents, buildModalForBlock, buildUploadModal, colorModal, saveModal, saveSession, addBlock, updateFromModal, applyUploadedImage, refreshSavedSession }
+module.exports = { sessions, createSession, getSession, deleteSession, buildEditorComponents, buildReplyComponents, buildReplyPayload, buildModalForBlock, buildUploadModal, colorModal, saveModal, saveSession, addBlock, updateFromModal, applyUploadedImage, refreshSavedSession }
